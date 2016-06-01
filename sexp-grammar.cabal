@@ -34,12 +34,13 @@ library
     Language.SexpGrammar.TH
     Language.SexpGrammar.Generic
 
-  other-modules:
+    Control.Monad.ContextError
     Data.InvertibleGrammar
     Data.InvertibleGrammar.Monad
     Data.InvertibleGrammar.Generic
     Data.InvertibleGrammar.TH
-    Control.Monad.ContextError
+
+  other-modules:
     Language.Sexp.Lexer
     Language.Sexp.Parser
     Language.Sexp.Token
