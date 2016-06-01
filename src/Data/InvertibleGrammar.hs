@@ -3,7 +3,6 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -19,7 +18,7 @@ module Data.InvertibleGrammar
   , partialOsi
   , push
   , pushForget
-  , InvertibleGrammar(..)
+  , InvertibleGrammar (..)
   , GrammarError (..)
   , Mismatch
   , expected

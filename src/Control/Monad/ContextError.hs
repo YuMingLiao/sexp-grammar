@@ -125,8 +125,8 @@ instance MonadReader r m => MonadReader r (ContextErrorT c e m) where
 class (Monad m) => MonadContextError c e m | m -> c e where
   throwInContext :: (c -> e) -> m a
   askContext     :: m c
-  localContext  :: (c -> c) -> m a -> m a
-  modifyContext   :: (c -> c) -> m ()
+  localContext   :: (c -> c) -> m a -> m a
+  modifyContext  :: (c -> c) -> m ()
 
 instance Monad m =>
          MonadContextError c e (ContextErrorT c e m) where

@@ -50,7 +50,7 @@ instance Ord (Propagation p) where
 -- mismatch report.
 data Mismatch = Mismatch
   { mismatchExpected :: Set Text
-  , mismatchGot :: Maybe Text
+  , mismatchGot      :: Maybe Text
   } deriving (Show, Eq)
 
 -- | Construct a mismatch report with specified expectation. Can be appended
