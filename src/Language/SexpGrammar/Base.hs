@@ -34,10 +34,13 @@ import Data.Scientific
 import Data.Text (Text)
 import qualified Data.Text.Lazy as Lazy
 
+import Data.HetCompare
 import Data.InvertibleGrammar
 import Data.InvertibleGrammar.Monad
 import Language.Sexp.Pretty (prettySexp')
 import Language.Sexp.Types
+
+import Unsafe.Coerce
 
 -- | Grammar which matches Sexp to a value of type a and vice versa.
 type SexpG a = forall t. Grammar SexpGrammar (Sexp :- t) (a :- t)
@@ -54,11 +57,11 @@ unexpectedSexp exp got =
   grammarError $ expected exp `mappend` unexpected (Lazy.toStrict $ prettySexp' got)
 
 unexpectedAtom :: (MonadContextError (Propagation Position) (GrammarError Position) m) => Atom -> Atom -> m a
-unexpectedAtom expected atom = do
+unexpectedAtom expected atom =
   unexpectedSexp (Lazy.toStrict $ prettySexp' (Atom dummyPos expected)) (Atom dummyPos atom)
 
 unexpectedAtomType :: (MonadContextError (Propagation Position) (GrammarError Position) m) => Text-> Atom -> m a
-unexpectedAtomType expected atom = do
+unexpectedAtomType expected atom =
   unexpectedSexp ("atom of type " `mappend` expected) (Atom dummyPos atom)
 
 
@@ -70,6 +73,22 @@ data SexpGrammar a b where
   GAtom :: Grammar AtomGrammar (Atom :- t) t' -> SexpGrammar (Sexp :- t) t'
   GList :: Grammar SeqGrammar t            t' -> SexpGrammar (Sexp :- t) t'
   GVect :: Grammar SeqGrammar t            t' -> SexpGrammar (Sexp :- t) t'
+
+instance GEq SexpGrammar where
+  -- geqHet GPos      GPos       = Just ReflInOut
+  geqHet (GAtom g) (GAtom g') =
+    case geqHet g g' of
+      Nothing        -> Nothing
+      Just ReflInOut -> Just ReflInOut
+  geqHet (GList g) (GList g') =
+    case geqHet g g' of
+      Nothing        -> Nothing
+      Just ReflInOut -> Just ReflInOut
+  geqHet (GVect g) (GVect g') =
+    case geqHet g g' of
+      Nothing        -> Nothing
+      Just ReflInOut -> Just ReflInOut
+  geqHet _ _ = Nothing
 
 instance
   ( MonadPlus m
@@ -111,6 +130,18 @@ instance
 ----------------------------------------------------------------------
 -- Atom grammar
 
+-- data List a b where
+--   Nil  :: List Int b
+--   Cons :: a -> b -> List a b -> List a b
+--
+-- instance GEq List where
+--   geqHet Nil Nil = Just ReflInOut
+--   geqHet (Cons _ _ xs) (Cons _ _ ys) =
+--     case geqHet xs ys of
+--       Nothing        -> Nothing
+--       Just ReflInOut -> Just ReflInOut
+--   geqHet _ _ = Nothing
+
 data AtomGrammar a b where
   GSym     :: Text -> AtomGrammar (Atom :- t) t
   GKw      :: Kw   -> AtomGrammar (Atom :- t) t
@@ -120,6 +151,19 @@ data AtomGrammar a b where
   GString  :: AtomGrammar (Atom :- t) (Text :- t)
   GSymbol  :: AtomGrammar (Atom :- t) (Text :- t)
   GKeyword :: AtomGrammar (Atom :- t) (Kw :- t)
+
+instance GEq AtomGrammar where
+  geqHet (GSym x)    (GSym y)
+    | x == y = Just $ unsafeCoerce ReflInOut
+  geqHet (GKw x)     (GKw y)
+    | x == y = Just $ unsafeCoerce ReflInOut
+  geqHet GBool    GBool    = Just $ unsafeCoerce ReflInOut
+  geqHet GInt     GInt     = Just $ unsafeCoerce ReflInOut
+  geqHet GReal    GReal    = Just $ unsafeCoerce ReflInOut
+  geqHet GString  GString  = Just $ unsafeCoerce ReflInOut
+  geqHet GSymbol  GSymbol  = Just $ unsafeCoerce ReflInOut
+  geqHet GKeyword GKeyword = Just $ unsafeCoerce ReflInOut
+  geqHet _        _        = Nothing
 
 instance
   ( MonadPlus m
@@ -196,6 +240,21 @@ data SeqGrammar a b where
 
   GProps :: Grammar PropGrammar t t'
          -> SeqGrammar t t'
+
+instance GEq SeqGrammar where
+  geqHet (GElem g)  (GElem g')  =
+    case geqHet g g' of
+      Nothing        -> Nothing
+      Just ReflInOut -> Just ReflInOut
+  geqHet (GRest g)  (GRest g')  =
+    case geqHet g g' of
+      Nothing        -> Nothing
+      Just ReflInOut -> Just ReflInOut
+  geqHet (GProps g) (GProps g') =
+    case geqHet g g' of
+      Nothing        -> Nothing
+      Just ReflInOut -> Just ReflInOut
+  geqHet _          _           = Nothing
 
 newtype SeqCtx = SeqCtx { getItems :: [Sexp] }
 
@@ -278,6 +337,19 @@ data PropGrammar a b where
   GOptProp :: Kw
            -> Grammar SexpGrammar (Sexp :- t) (a :- t)
            -> PropGrammar t (Maybe a :- t)
+
+instance GEq PropGrammar where
+  geqHet (GProp x g)    (GProp y h)
+    | x == y =
+      case geqHet g h of
+        Nothing        -> Nothing
+        Just ReflInOut -> Just ReflInOut
+  geqHet (GOptProp x g) (GOptProp y h)
+    | x == y =
+      case geqHet g h of
+        Nothing        -> Nothing
+        Just ReflInOut -> Just ReflInOut
+  geqHet _              _ = Nothing
 
 newtype PropCtx = PropCtx { getProps :: Map Kw Sexp }
 

@@ -15,6 +15,8 @@ import qualified Language.Sexp as Sexp
 import Language.SexpGrammar
 import Language.SexpGrammar.TH
 
+import Data.InvertibleGrammar (optimize)
+
 newtype Ident = Ident String
   deriving (Show)
 
@@ -69,6 +71,22 @@ parseExpr = parseSexp sexpIso
 genExpr :: Expr -> Either String Sexp
 genExpr = genSexp sexpIso
 
+parseExprOpt :: Sexp -> Either String Expr
+parseExprOpt = parseSexp (optimize sexpIso)
+
+genExprOpt :: Expr -> Either String Sexp
+genExprOpt = genSexp (optimize sexpIso)
+
+optSexpGrammar :: SexpG Expr
+optSexpGrammar = optimize sexpIso
+
+parseExprOpt' :: Sexp -> Either String Expr
+parseExprOpt' = parseSexp optSexpGrammar
+
+genExprOpt' :: Expr -> Either String Sexp
+genExprOpt' = genSexp optSexpGrammar
+
+
 expr :: B8.ByteString -> Expr
 expr = either error id . decode
 
@@ -93,6 +111,16 @@ benchCases_sexp = map (second (either error id . genExpr)) benchCases_expr
 
 main :: IO ()
 main = defaultMain
-  [ bgroup "generation" . map (\(name, expr) -> bench name $ whnf genExpr expr) $ benchCases_expr
-  , bgroup "parsing" . map (\(name, sexp) -> bench name $ whnf parseExpr sexp) $ benchCases_sexp
+  [ bgroup "unoptimized"
+      [ bgroup "generation" . map (\(name, expr) -> bench name $ whnf genExpr expr) $ benchCases_expr
+      , bgroup "parsing" . map (\(name, sexp) -> bench name $ whnf parseExpr sexp) $ benchCases_sexp
+      ]
+  , bgroup "optimized"
+      [ bgroup "generation" . map (\(name, expr) -> bench name $ whnf genExprOpt expr) $ benchCases_expr
+      , bgroup "parsing" . map (\(name, sexp) -> bench name $ whnf parseExprOpt sexp) $ benchCases_sexp
+      ]
+  , bgroup "optimized with global grammar"
+      [ bgroup "generation" . map (\(name, expr) -> bench name $ whnf genExprOpt' expr) $ benchCases_expr
+      , bgroup "parsing" . map (\(name, sexp) -> bench name $ whnf parseExprOpt' sexp) $ benchCases_sexp
+      ]
   ]

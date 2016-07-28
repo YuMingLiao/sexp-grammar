@@ -35,6 +35,7 @@ library
     Language.SexpGrammar.Generic
 
     Control.Monad.ContextError
+    Data.HetCompare
     Data.InvertibleGrammar
     Data.InvertibleGrammar.Monad
     Data.InvertibleGrammar.Generic
@@ -54,6 +55,7 @@ library
     , base >=4.7 && <5
     , bytestring
     , containers
+    , dlist
     , mtl >=2.1
     , profunctors
     , scientific
