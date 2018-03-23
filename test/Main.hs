@@ -20,14 +20,16 @@ import Control.Applicative
 #endif
 
 import Control.Category
-import qualified Data.Text.Lazy as TL
+import qualified Data.Map as M
 import Data.Scientific
 import Data.Semigroup
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text as TS
+import GHC.Generics
 import Test.QuickCheck ()
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck as QC
-import GHC.Generics
 
 import Language.Sexp as Sexp hiding (parseSexp')
 import Language.SexpGrammar as G
@@ -121,6 +123,37 @@ arithExprGenericIso = expr
       $ With (\add -> add . list (el (sym "+") >>> el expr >>> el expr))
       $ With (\mul -> mul . list (el (sym "*") >>> rest expr))
       $ End
+
+data SexpTag a
+  = ListStartsWithSym TS.Text
+  | SomeAtom
+  | Other
+  deriving (Eq, Ord)
+
+tagSexp :: [TS.Text] -> Sexp -> SexpTag Sexp
+tagSexp specials sexp = case sexp of
+  List _ (Atom _ (AtomSymbol s) : _) | s `elem` specials -> ListStartsWithSym s
+  Atom _ _ -> SomeAtom
+  _ -> Other
+
+arithExprOctopusIso :: Grammar Position (Sexp :- t) (ArithExpr :- t)
+arithExprOctopusIso = expr
+  where
+    expr :: Grammar Position (Sexp :- t) (ArithExpr :- t)
+    expr = octopus (tagSexp []) tag $
+      [ ( SomeAtom
+        , tag (Lit undefined)
+        , $(grammarFor 'Lit) . int
+        )
+      , ( Other
+        , tag (Add undefined undefined)
+        , $(grammarFor 'Add) . list (el (sym "+") >>> el expr >>> el expr)
+        )
+      , ( Other
+        , tag (Mul undefined)
+        , $(grammarFor 'Mul) . list (el (sym "*") >>> rest expr)
+        )
+      ]
 
 
 data Person = Person
@@ -278,6 +311,7 @@ parseGenTests :: TestTree
 parseGenTests = testGroup "parse . gen == id"
   [ QC.testProperty "ArithExprs/TH" (genParseIdentityProp arithExprTHIso)
   , QC.testProperty "ArithExprs/Generics" (genParseIdentityProp arithExprGenericIso)
+  , QC.testProperty "ArithExprs/Octopus" (genParseIdentityProp arithExprOctopusIso)
   , QC.testProperty "Pair Int String" (genParseIdentityProp (pairGenericIso int string'))
   , QC.testProperty "Foo (Foo Int String) (Pair String Int)" (genParseIdentityProp (fooGenericIso (fooGenericIso int string') (pairGenericIso string' int)))
   , QC.testProperty "Person" (genParseIdentityProp personGenericIso)

@@ -47,6 +47,7 @@ library
     Language.Sexp.Types
     Language.SexpGrammar.Base
     Language.SexpGrammar.Class
+    Language.SexpGrammar.Tag
 
   build-depends:
       array
@@ -73,6 +74,7 @@ test-suite sexp-grammar-test
     , base
     , scientific
     , semigroups
+    , containers
     , sexp-grammar
     , tasty
     , tasty-hunit
@@ -87,11 +89,13 @@ benchmark sexp-grammar-bench
   build-depends:
       base
     , bytestring
+    , containers
     , criterion
+    , deepseq
     , scientific
     , semigroups
-    , sexp-grammar
     , text
+    , sexp-grammar
   main-is:           Main.hs
   hs-source-dirs:    bench
   default-language:  Haskell2010
