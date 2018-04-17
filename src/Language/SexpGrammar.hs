@@ -65,6 +65,10 @@ module Language.SexpGrammar
   , Sexp.Atom (..)
   , Sexp.Kw (..)
   , Grammar (..)
+  , Taggy (..)
+  , Tag (..)
+  , Hinted (..)
+  , HintedGrammar (..)
   , (:-) (..)
   -- * Combinators
   -- ** Primitive grammars
@@ -74,9 +78,8 @@ module Language.SexpGrammar
   , partialOsi
   , push
   , pushForget
-  , octopus
+  , select
   , module Language.SexpGrammar.Base
-  , module Language.SexpGrammar.Tag
   -- * Decoding and encoding (machine-oriented)
   , decode
   , decodeWith
@@ -107,7 +110,6 @@ import qualified Language.Sexp as Sexp
 
 import Language.SexpGrammar.Base
 import Language.SexpGrammar.Class
-import Language.SexpGrammar.Tag
 
 ----------------------------------------------------------------------
 -- Sexp interface

@@ -11,6 +11,8 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 
+{-# LANGUAGE DataKinds #-}
+
 module Main (main) where
 
 import Prelude hiding ((.), id)
@@ -124,37 +126,30 @@ arithExprGenericIso = expr
       $ With (\mul -> mul . list (el (sym "*") >>> rest expr))
       $ End
 
-data SexpTag a
-  = ListStartsWithSym TS.Text
-  | SomeAtom
-  | Other
-  deriving (Eq, Ord)
-
-tagSexp :: [TS.Text] -> Sexp -> SexpTag Sexp
-tagSexp specials sexp = case sexp of
-  List _ (Atom _ (AtomSymbol s) : _) | s `elem` specials -> ListStartsWithSym s
-  Atom _ _ -> SomeAtom
-  _ -> Other
-
 arithExprOctopusIso :: Grammar Position (Sexp :- t) (ArithExpr :- t)
 arithExprOctopusIso = expr
   where
-    expr :: Grammar Position (Sexp :- t) (ArithExpr :- t)
-    expr = octopus (tagSexp []) tag $
-      [ ( SomeAtom
-        , tag (Lit undefined)
-        , $(grammarFor 'Lit) . int
-        )
-      , ( Other
-        , tag (Add undefined undefined)
-        , $(grammarFor 'Add) . list (el (sym "+") >>> el expr >>> el expr)
-        )
-      , ( Other
-        , tag (Mul undefined)
-        , $(grammarFor 'Mul) . list (el (sym "*") >>> rest expr)
-        )
-      ]
+    lit :: Grammar p (Int :- t) (Hinted (Tag ArithExpr) '[ 'Tag 0 ] :- t)
+    lit = iso Hinted getHinted . $(grammarFor 'Lit)
 
+    add :: Grammar p (ArithExpr :- ArithExpr :- t) (Hinted (Tag ArithExpr) '[ 'Tag 1 ] :- t)
+    add = iso Hinted getHinted . $(grammarFor 'Add)
+
+    mul :: Grammar p ([ArithExpr] :- t) (Hinted (Tag ArithExpr) '[ 'Tag 2 ] :- t)
+    mul = iso Hinted getHinted . $(grammarFor 'Mul)
+
+    int' :: Grammar Position (Hinted (Tag Sexp) '[ 'Tag 0 ] :- t) (Int :- t)
+    int' = iso getHinted Hinted >>> int
+
+    list' :: (Grammar Position ([Sexp] :- t) ([Sexp] :- t')) -> Grammar Position (Hinted (Tag Sexp) '[ 'Tag 1 ] :- t) t'
+    list' g = iso getHinted Hinted >>> list g
+
+    expr :: Grammar Position (Sexp :- t) (ArithExpr :- t)
+    expr = select
+      [ G.HintedGrammar $ int' >>> lit
+      , G.HintedGrammar $ list' (el (sym "+") >>> el expr >>> el expr) >>> add
+      , G.HintedGrammar $ list' (el (sym "*") >>> rest expr) >>> mul
+      ]
 
 data Person = Person
   { pName     :: String

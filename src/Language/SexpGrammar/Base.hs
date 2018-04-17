@@ -59,7 +59,9 @@ runGen gram input =
 ----------------------------------------------------------------------
 
 position :: Grammar Position (Sexp :- t) (Position :- Sexp :- t)
-position = Iso (\(s :- t) -> getPos s :- s :- t) (\(_ :- s :- t) -> s :- t)
+position = Iso
+  (\(s :- t) -> getPos s :- s :- t)
+  (\(_ :- s :- t) -> s :- t)
 
 
 locate :: Grammar Position (Sexp :- t) (Sexp :- t)
@@ -144,6 +146,7 @@ keyMay k g = lkpMay k >>> Step >>> Bitraverse (Traverse (unTail g)) id >>> swap
 
 (.:?) :: Kw -> (forall t. Grammar p (Sexp :- t) (a :- t)) -> Grammar p ([(Kw, Sexp)] :- t) ([(Kw, Sexp)] :- Maybe a :- t)
 (.:?) = keyMay
+
 
 ----------------------------------------------------------------------
 -- Utils
