@@ -26,7 +26,6 @@ import qualified Data.Map as M
 import Data.Scientific
 import Data.Semigroup
 import qualified Data.Text.Lazy as TL
-import qualified Data.Text as TS
 import GHC.Generics
 import Test.QuickCheck ()
 import Test.Tasty
@@ -126,30 +125,30 @@ arithExprGenericIso = expr
       $ With (\mul -> mul . list (el (sym "*") >>> rest expr))
       $ End
 
-arithExprOctopusIso :: Grammar Position (Sexp :- t) (ArithExpr :- t)
-arithExprOctopusIso = expr
-  where
-    lit :: Grammar p (Int :- t) (Hinted (Tag ArithExpr) '[ 'Tag 0 ] :- t)
-    lit = iso Hinted getHinted . $(grammarFor 'Lit)
+-- arithExprOctopusIso :: Grammar Position (Sexp :- t) (ArithExpr :- t)
+-- arithExprOctopusIso = expr
+--   where
+--     lit :: Grammar p (Int :- t) (Hinted (Tag ArithExpr) '[ 'Tag 0 ] :- t)
+--     lit = iso Hinted getHinted . $(grammarFor 'Lit)
 
-    add :: Grammar p (ArithExpr :- ArithExpr :- t) (Hinted (Tag ArithExpr) '[ 'Tag 1 ] :- t)
-    add = iso Hinted getHinted . $(grammarFor 'Add)
+--     add :: Grammar p (ArithExpr :- ArithExpr :- t) (Hinted (Tag ArithExpr) '[ 'Tag 1 ] :- t)
+--     add = iso Hinted getHinted . $(grammarFor 'Add)
 
-    mul :: Grammar p ([ArithExpr] :- t) (Hinted (Tag ArithExpr) '[ 'Tag 2 ] :- t)
-    mul = iso Hinted getHinted . $(grammarFor 'Mul)
+--     mul :: Grammar p ([ArithExpr] :- t) (Hinted (Tag ArithExpr) '[ 'Tag 2 ] :- t)
+--     mul = iso Hinted getHinted . $(grammarFor 'Mul)
 
-    int' :: Grammar Position (Hinted (Tag Sexp) '[ 'Tag 0 ] :- t) (Int :- t)
-    int' = iso getHinted Hinted >>> int
+--     int' :: Grammar Position (Hinted (Tag Sexp) '[ 'Tag 0 ] :- t) (Int :- t)
+--     int' = iso getHinted Hinted >>> int
 
-    list' :: (Grammar Position ([Sexp] :- t) ([Sexp] :- t')) -> Grammar Position (Hinted (Tag Sexp) '[ 'Tag 1 ] :- t) t'
-    list' g = iso getHinted Hinted >>> list g
+--     list' :: (Grammar Position ([Sexp] :- t) ([Sexp] :- t')) -> Grammar Position (Hinted (Tag Sexp) '[ 'Tag 1 ] :- t) t'
+--     list' g = iso getHinted Hinted >>> list g
 
-    expr :: Grammar Position (Sexp :- t) (ArithExpr :- t)
-    expr = select
-      [ G.HintedGrammar $ int' >>> lit
-      , G.HintedGrammar $ list' (el (sym "+") >>> el expr >>> el expr) >>> add
-      , G.HintedGrammar $ list' (el (sym "*") >>> rest expr) >>> mul
-      ]
+--     expr :: Grammar Position (Sexp :- t) (ArithExpr :- t)
+--     expr = select
+--       [ G.HintedGrammar $ int' >>> lit
+--       , G.HintedGrammar $ list' (el (sym "+") >>> el expr >>> el expr) >>> add
+--       , G.HintedGrammar $ list' (el (sym "*") >>> rest expr) >>> mul
+--       ]
 
 data Person = Person
   { pName     :: String
@@ -306,7 +305,7 @@ parseGenTests :: TestTree
 parseGenTests = testGroup "parse . gen == id"
   [ QC.testProperty "ArithExprs/TH" (genParseIdentityProp arithExprTHIso)
   , QC.testProperty "ArithExprs/Generics" (genParseIdentityProp arithExprGenericIso)
-  , QC.testProperty "ArithExprs/Octopus" (genParseIdentityProp arithExprOctopusIso)
+  -- , QC.testProperty "ArithExprs/Octopus" (genParseIdentityProp arithExprOctopusIso)
   , QC.testProperty "Pair Int String" (genParseIdentityProp (pairGenericIso int string'))
   , QC.testProperty "Foo (Foo Int String) (Pair String Int)" (genParseIdentityProp (fooGenericIso (fooGenericIso int string') (pairGenericIso string' int)))
   , QC.testProperty "Person" (genParseIdentityProp personGenericIso)

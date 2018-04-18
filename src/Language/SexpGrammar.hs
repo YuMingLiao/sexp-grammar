@@ -67,8 +67,6 @@ module Language.SexpGrammar
   , Grammar (..)
   , Taggy (..)
   , Tag (..)
-  , Hinted (..)
-  , HintedGrammar (..)
   , (:-) (..)
   -- * Combinators
   -- ** Primitive grammars
@@ -78,7 +76,6 @@ module Language.SexpGrammar
   , partialOsi
   , push
   , pushForget
-  , select
   , module Language.SexpGrammar.Base
   -- * Decoding and encoding (machine-oriented)
   , decode

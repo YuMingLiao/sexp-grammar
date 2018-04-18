@@ -26,6 +26,7 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
   exposed-modules:
+    Data.InvertibleGrammar
     Language.Sexp
     Language.Sexp.Encode
     Language.Sexp.Pretty
@@ -35,7 +36,6 @@ library
     Language.SexpGrammar.Generic
 
   other-modules:
-    Data.InvertibleGrammar
     Data.InvertibleGrammar.Monad
     Data.InvertibleGrammar.Generic
     Data.InvertibleGrammar.TH
@@ -47,7 +47,6 @@ library
     Language.Sexp.Types
     Language.SexpGrammar.Base
     Language.SexpGrammar.Class
-    Language.SexpGrammar.Tag
 
   build-depends:
       array

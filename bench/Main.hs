@@ -5,10 +5,9 @@
 {-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TypeOperators      #-}
 
-{-# LANGUAGE TypeFamilies  #-}
-{-# LANGUAGE LambdaCase  #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE DataKinds  #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+module Main (main) where
 
 import Criterion.Main
 
@@ -19,15 +18,17 @@ import Control.Category
 import Control.DeepSeq
 import Control.Exception
 
-import qualified Data.Map as M
 import Data.Data (Data, Typeable)
-import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
 import GHC.Generics (Generic)
 
-import Language.Sexp (Sexp, Atom, Kw, Position, dummyPos)
+import Data.InvertibleGrammar
+
+import Language.Sexp (Sexp, Atom, Kw, Position)
 import Language.SexpGrammar
-import Language.SexpGrammar.TH
+import qualified Language.SexpGrammar.TH as TH
+import qualified Language.SexpGrammar.Generic as G
+import Language.SexpGrammar.Generic (Coproduct(..))
 
 newtype Ident = Ident String
   deriving (Show, Eq, Generic)
@@ -65,14 +66,14 @@ instance SexpIso Prim where
   sexpIso = enum
 
 instance SexpIso Ident where
-  sexpIso = $(match ''Ident)
+  sexpIso = $(TH.match ''Ident)
     (\_Ident -> _Ident . symbol')
 
 exprGrammarTH :: SexpG Expr
 exprGrammarTH = go
   where
     go :: SexpG Expr
-    go = $(match ''Expr)
+    go = $(TH.match ''Expr)
       (\_Var -> _Var . sexpIso)
       (\_Lit -> _Lit . int)
       (\_Add -> _Add . list (el (sym "+") >>> el go >>> el go))
@@ -92,85 +93,68 @@ exprGrammarTH = go
                swap)                                -- Swap:            prim :- "dummy" :- args :- ()
            ))
 
-
-data SexpTag
-  = SomeList
-  | SomeAtom
-  | SomeOther
-  deriving (Eq, Ord, Show)
-
-instance Taggy SexpTag where
-  type Original SexpTag = Sexp
-  type Hint SexpTag = SexpTag
-  mkTag _ = \case
-    List _ _ -> SomeList
-    Atom _ _ -> SomeAtom
-    _        -> SomeOther
-  mkMismatch _ = \case
-    SomeList -> unexpected "list"
-    SomeAtom -> unexpected "atom"
-    SomeOther -> unexpected "other"
-
-
-exprGrammarOctopus:: SexpG Expr
-exprGrammarOctopus = go
+exprGrammarGeneric :: SexpG Expr
+exprGrammarGeneric = go
   where
     go :: SexpG Expr
-    go = select
-      [ HintedGrammar $ iso (Hinted @(Tag Expr) @('[ 'Tag 0 ])) getHinted . $(grammarFor 'Var) . sexpIso . iso getHinted (Hinted @(Tag Sexp) @('[ 'Tag 0 ]))
-      -- , HintedGrammar $ $(grammarFor 'Lit) . int
-      -- , HintedGrammar $ $(grammarFor 'Add) . list (el (sym "+") >>> el go >>> el go)
-      -- , HintedGrammar $ $(grammarFor 'Mul) . list (el (sym "*") >>> el go >>> el go)
-      -- , HintedGrammar $ $(grammarFor 'Inv) . list (el (sym "invert") >>> el go)
-      -- , HintedGrammar $ $(grammarFor 'IfZero) . list (
-      --                     el (sym "cond") >>>
-      --                     props ( Kw "pred"  .:  go >>>
-      --                             Kw "true"  .:  go >>>
-      --                             Kw "false" .:? go))
-      -- , HintedGrammar $ $(grammarFor 'Apply) .
-      --                     list (
-      --                       el (sexpIso :: SexpG Prim) >>>
-      --                       el (kw (Kw "args")) >>>
-      --                       rest go >>>
-      --                       Traverse (swap >>> push "dummy" >>> swap))
-      ]
+    go = G.match
+      $ With (\_Var -> _Var . sexpIso)
+      $ With (\_Lit -> _Lit . int)
+      $ With (\_Add -> _Add . list (el (sym "+") >>> el go >>> el go))
+      $ With (\_Mul -> _Mul . list (el (sym "*") >>> el go >>> el go))
+      $ With (\_Inv -> _Inv . list (el (sym "invert") >>> el go))
+      $ With (\_IfZero -> _IfZero . list (el (sym "cond") >>> props ( Kw "pred"  .:  go
+                                                                  >>> Kw "true"  .:  go
+                                                                  >>> Kw "false" .:? go )))
+      $ With (\_Apply -> _Apply .              -- Convert prim :- "dummy" :- args :- () to Apply node
+                list
+                 (el (sexpIso :: SexpG Prim) >>>       -- Push prim:       prim :- ()
+                  el (kw (Kw "args")) >>>              -- Recognize :args, push nothing
+                  rest (go :: SexpG Expr) >>>     -- Push args:       args :- prim :- ()
+                  Traverse (
+                     swap >>>                             -- Swap:            prim :- args :- ()
+                     push "dummy" >>>                     -- Push "dummy":    "dummy" :- prim :- args :- ()
+                     swap)                                -- Swap:            prim :- "dummy" :- args :- ()
+                 ))
+      $ End
 
-exprGrammarSelect:: SexpG Expr
+
+exprGrammarSelect :: SexpG Expr
 exprGrammarSelect = go
   where
     go :: SexpG Expr
-    go = semiOctopus
-      [ ( SomeAtom'
-        , tag (Var undefined)
-        , $(grammarFor 'Var) . sexpIso
+    go = select
+      [ ( ConstTag
+        , mkTag (Var undefined) :: Tag Expr
+        , $(TH.grammarFor 'Var) . sexpIso
         )
-      , ( SomeAtom'
-        , tag (Lit undefined)
-        , $(grammarFor 'Lit) . int
+      , ( ConstTag
+        , mkTag (Lit undefined)
+        , $(TH.grammarFor 'Lit) . int
         )
-      , ( SomeList'
-        , tag (Add undefined undefined)
-        , $(grammarFor 'Add) . list (el (sym "+") >>> el go >>> el go)
+      , ( ConstTag
+        , mkTag (Add undefined undefined)
+        , $(TH.grammarFor 'Add) . list (el (sym "+") >>> el go >>> el go)
         )
-      , ( SomeList'
-        , tag (Mul undefined undefined)
-        , $(grammarFor 'Mul) . list (el (sym "*") >>> el go >>> el go)
+      , ( ConstTag
+        , mkTag (Mul undefined undefined)
+        , $(TH.grammarFor 'Mul) . list (el (sym "*") >>> el go >>> el go)
         )
-      , ( SomeList'
-        , tag (Inv undefined)
-        , $(grammarFor 'Inv) . list (el (sym "invert") >>> el go)
+      , ( ConstTag
+        , mkTag (Inv undefined)
+        , $(TH.grammarFor 'Inv) . list (el (sym "invert") >>> el go)
         )
-      , ( SomeList'
-        , tag (IfZero undefined undefined undefined)
-        , $(grammarFor 'IfZero) . list (
+      , ( ConstTag
+        , mkTag (IfZero undefined undefined undefined)
+        , $(TH.grammarFor 'IfZero) . list (
               el (sym "cond") >>>
               props ( Kw "pred"  .:  go >>>
                       Kw "true"  .:  go >>>
                       Kw "false" .:? go))
         )
-      , ( SomeOther'
-        , tag (Apply undefined undefined undefined)
-        , $(grammarFor 'Apply) .
+      , ( ConstTag
+        , mkTag (Apply undefined undefined undefined)
+        , $(TH.grammarFor 'Apply) .
           list (
             el (sexpIso :: SexpG Prim) >>>
             el (kw (Kw "args")) >>>
@@ -180,60 +164,11 @@ exprGrammarSelect = go
       ]
 
 
--- exprGrammarOctopus:: SexpG Expr
--- exprGrammarOctopus = go
---   where
---     go :: SexpG Expr
---     go = octopus (tagSexp ["+", "*", "invert", "cond"]) tag
---       [ ( SomeAtom
---         , tag (Var undefined)
---         , $(grammarFor 'Var) . sexpIso
---         )
---       , ( SomeAtom
---         , tag (Lit undefined)
---         , $(grammarFor 'Lit) . int
---         )
---       , ( ListStartsWithSym "+"
---         , tag (Add undefined undefined)
---         , $(grammarFor 'Add) . list (el (sym "+") >>> el go >>> el go)
---         )
---       , ( ListStartsWithSym "*"
---         , tag (Mul undefined undefined)
---         , $(grammarFor 'Mul) . list (el (sym "*") >>> el go >>> el go)
---         )
---       , ( ListStartsWithSym "invert"
---         , tag (Inv undefined)
---         , $(grammarFor 'Inv) . list (el (sym "invert") >>> el go)
---         )
---       , ( ListStartsWithSym "cond"
---         , tag (IfZero undefined undefined undefined)
---         , $(grammarFor 'IfZero) . list (
---               el (sym "cond") >>>
---               props ( Kw "pred"  .:  go >>>
---                       Kw "true"  .:  go >>>
---                       Kw "false" .:? go))
---         )
---       , ( Other
---         , tag (Apply undefined undefined undefined)
---         , $(grammarFor 'Apply) .
---           list (
---             el (sexpIso :: SexpG Prim) >>>
---             el (kw (Kw "args")) >>>
---             rest go >>>
---             Traverse (swap >>> push "dummy" >>> swap))
---         )
---       ]
-
-
 expr :: TL.Text -> Expr
 expr = either error id . decodeWith exprGrammarTH
 
-ellipsis :: Int -> String -> String
-ellipsis n str =
-  if length str - 3 > n then take (n - 3) str ++ "..." else str
-
 benchCases :: [(String, TL.Text)]
-benchCases = map (\a -> ("expression, size " ++ show (TL.length a), a))
+benchCases = map (\a -> ("expression, size " ++ show (TL.length a) ++ " bytes", a))
   [ "(+ 1 20)"
   , "(cond :pred (+ 42 x) :false (fibonacci :args 3) :true (factorial :args (* 10 (+ 1 2))))"
   , "(invert (* (+ (cond :pred (+ 42 314) :false (fibonacci :args 3) :true (factorial :args \
@@ -249,10 +184,10 @@ mkBenchmark name str = do
   sexp <- evaluate $ force $ either error id (genSexp exprGrammarTH expr)
   return $ bgroup name
     [ bench "gen"    $ nf (genSexp exprGrammarTH) expr
-    , bench "genO"   $ nf (genSexp exprGrammarOctopus) expr
+    , bench "genG"   $ nf (genSexp exprGrammarGeneric) expr
     , bench "genS"   $ nf (genSexp exprGrammarSelect) expr
     , bench "parse"  $ nf (parseSexp exprGrammarTH) sexp
-    , bench "parseO" $ nf (parseSexp exprGrammarOctopus) sexp
+    , bench "parseG" $ nf (parseSexp exprGrammarGeneric) sexp
     , bench "parseS" $ nf (parseSexp exprGrammarSelect) sexp
     ]
 
